@@ -4,6 +4,8 @@ import cn.edu.hitsz.compiler.NotImplementedException;
 import cn.edu.hitsz.compiler.symtab.SymbolTable;
 import cn.edu.hitsz.compiler.utils.FileUtils;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.StreamSupport;
 
 /**
@@ -16,11 +18,12 @@ import java.util.stream.StreamSupport;
  */
 public class LexicalAnalyzer {
     private final SymbolTable symbolTable;
+    private List<Token> tokens;
+    private String input;
 
     public LexicalAnalyzer(SymbolTable symbolTable) {
         this.symbolTable = symbolTable;
     }
-
 
     /**
      * 从给予的路径中读取并加载文件内容
@@ -28,10 +31,7 @@ public class LexicalAnalyzer {
      * @param path 路径
      */
     public void loadFile(String path) {
-        // TODO: 词法分析前的缓冲区实现
-        // 可自由实现各类缓冲区
-        // 或直接采用完整读入方法
-        throw new NotImplementedException();
+        this.input = FileUtils.readFile(path);
     }
 
     /**
@@ -39,8 +39,100 @@ public class LexicalAnalyzer {
      * 需要维护实验一所需的符号表条目, 而得在语法分析中才能确定的符号表条目的成员可以先设置为 null
      */
     public void run() {
-        // TODO: 自动机实现的词法分析过程
-        throw new NotImplementedException();
+        tokens = new ArrayList<>();
+
+        int pos = 0;
+        while (pos < input.length()) {
+            char ch = input.charAt(pos);
+
+            // 跳过空白字符
+            if (Character.isWhitespace(ch)) {
+                pos++;
+                continue;
+            }
+
+            // 识别标识符或关键字
+            if (Character.isLetter(ch) || ch == '_') {
+                StringBuilder sb = new StringBuilder();
+                while (pos < input.length()
+                        && (Character.isLetterOrDigit(input.charAt(pos)) || input.charAt(pos) == '_')) {
+                    sb.append(input.charAt(pos));
+                    pos++;
+                }
+                String text = sb.toString();
+
+                // 检查是否是关键字
+                if (text.equals("int")) {
+                    tokens.add(Token.simple("int"));
+                } else if (text.equals("return")) {
+                    tokens.add(Token.simple("return"));
+                } else {
+                    // 是标识符，加入符号表
+                    if (!symbolTable.has(text)) {
+                        symbolTable.add(text);
+                    }
+                    tokens.add(Token.normal("id", text));
+                }
+                continue;
+            }
+
+            // 识别整数常量
+            if (Character.isDigit(ch)) {
+                StringBuilder sb = new StringBuilder();
+                while (pos < input.length() && Character.isDigit(input.charAt(pos))) {
+                    sb.append(input.charAt(pos));
+                    pos++;
+                }
+                String text = sb.toString();
+                tokens.add(Token.normal("IntConst", text));
+                continue;
+            }
+
+            // 识别符号
+            switch (ch) {
+                case '=':
+                    tokens.add(Token.simple("="));
+                    pos++;
+                    break;
+                case ',':
+                    tokens.add(Token.simple(","));
+                    pos++;
+                    break;
+                case ';':
+                    tokens.add(Token.simple("Semicolon"));
+                    pos++;
+                    break;
+                case '+':
+                    tokens.add(Token.simple("+"));
+                    pos++;
+                    break;
+                case '-':
+                    tokens.add(Token.simple("-"));
+                    pos++;
+                    break;
+                case '*':
+                    tokens.add(Token.simple("*"));
+                    pos++;
+                    break;
+                case '/':
+                    tokens.add(Token.simple("/"));
+                    pos++;
+                    break;
+                case '(':
+                    tokens.add(Token.simple("("));
+                    pos++;
+                    break;
+                case ')':
+                    tokens.add(Token.simple(")"));
+                    pos++;
+                    break;
+                default:
+                    throw new RuntimeException("Unexpected character: " + ch);
+            }
+        }
+
+        // 添加EOF token
+        tokens.add(Token.eof());
     }
 
     /**
@@ -49,19 +141,13 @@ public class LexicalAnalyzer {
      * @return Token 列表
      */
     public Iterable<Token> getTokens() {
-        // TODO: 从词法分析过程中获取 Token 列表
-        // 词法分析过程可以使用 Stream 或 Iterator 实现按需分析
-        // 亦可以直接分析完整个文件
-        // 总之实现过程能转化为一列表即可
-        throw new NotImplementedException();
+        return tokens;
     }
 
     public void dumpTokens(String path) {
         FileUtils.writeLines(
-            path,
-            StreamSupport.stream(getTokens().spliterator(), false).map(Token::toString).toList()
-        );
+                path,
+                StreamSupport.stream(getTokens().spliterator(), false).map(Token::toString).toList());
     }
-
 
 }

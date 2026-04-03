@@ -1,6 +1,9 @@
 out
 .idea
+.vscode
 *.iml
+target/
+*.class
 
 # follow https://stackoverflow.com/a/5534865
 !data/out
