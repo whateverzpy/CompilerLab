@@ -1,14 +1,15 @@
 package cn.edu.hitsz.compiler.parser;
 
-import cn.edu.hitsz.compiler.NotImplementedException;
 import cn.edu.hitsz.compiler.lexer.Token;
 import cn.edu.hitsz.compiler.parser.table.LRTable;
+import cn.edu.hitsz.compiler.parser.table.NonTerminal;
 import cn.edu.hitsz.compiler.parser.table.Production;
 import cn.edu.hitsz.compiler.parser.table.Status;
 import cn.edu.hitsz.compiler.symtab.SymbolTable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 
 //TODO: 实验二: 实现 LR 语法分析驱动程序
 
@@ -23,7 +24,8 @@ import java.util.List;
 public class SyntaxAnalyzer {
     private final SymbolTable symbolTable;
     private final List<ActionObserver> observers = new ArrayList<>();
-
+    private final List<Token> tokenList = new ArrayList<>();
+    private LRTable lrTable;
 
     public SyntaxAnalyzer(SymbolTable symbolTable) {
         this.symbolTable = symbolTable;
@@ -79,21 +81,107 @@ public class SyntaxAnalyzer {
         // 你可以自行选择要如何存储词法单元, 譬如使用迭代器, 或是栈, 或是干脆使用一个 list 全存起来
         // 需要注意的是, 在实现驱动程序的过程中, 你会需要面对只读取一个 token 而不能消耗它的情况,
         // 在自行设计的时候请加以考虑此种情况
-        throw new NotImplementedException();
+        tokenList.clear();
+        for (final var token : tokens) {
+            tokenList.add(token);
+        }
     }
 
     public void loadLRTable(LRTable table) {
         // TODO: 加载 LR 分析表
         // 你可以自行选择要如何使用该表格:
         // 是直接对 LRTable 调用 getAction/getGoto, 抑或是直接将 initStatus 存起来使用
-        throw new NotImplementedException();
+        lrTable = table;
     }
 
     public void run() {
         // TODO: 实现驱动程序
         // 你需要根据上面的输入来实现 LR 语法分析的驱动程序
-        // 请分别在遇到 Shift, Reduce, Accept 的时候调用上面的 callWhenInShift, callWhenInReduce, callWhenInAccept
+        // 请分别在遇到 Shift, Reduce, Accept 的时候调用上面的 callWhenInShift, callWhenInReduce,
+        // callWhenInAccept
         // 否则用于为实验二打分的产生式输出可能不会正常工作
-        throw new NotImplementedException();
+        if (lrTable == null) {
+            throw new RuntimeException("LR table is not loaded");
+        }
+        if (tokenList.isEmpty()) {
+            throw new RuntimeException("Token stream is empty");
+        }
+
+        final var statusStack = new Stack<Status>();
+        final var symbolStack = new Stack<Symbol>();
+        statusStack.push(lrTable.getInit());
+
+        int tokenIndex = 0;
+        while (true) {
+            final var currentStatus = statusStack.peek();
+            if (tokenIndex >= tokenList.size()) {
+                throw new RuntimeException("Unexpected end of token stream");
+            }
+            final var currentToken = tokenList.get(tokenIndex);
+            final var action = lrTable.getAction(currentStatus, currentToken);
+
+            switch (action.getKind()) {
+                case Shift -> {
+                    callWhenInShift(currentStatus, currentToken);
+                    symbolStack.push(new Symbol(currentToken));
+                    statusStack.push(action.getStatus());
+                    tokenIndex++;
+                }
+                case Reduce -> {
+                    final var production = action.getProduction();
+                    callWhenInReduce(currentStatus, production);
+
+                    final var bodySize = production.body().size();
+                    for (int i = 0; i < bodySize; i++) {
+                        symbolStack.pop();
+                        statusStack.pop();
+                    }
+
+                    final var gotoFrom = statusStack.peek();
+                    final var head = production.head();
+                    symbolStack.push(new Symbol(head));
+
+                    final var gotoStatus = lrTable.getGoto(gotoFrom, head);
+                    if (gotoStatus.isError()) {
+                        throw new RuntimeException(
+                                "Goto error on non-terminal %s at status %s".formatted(head, gotoFrom));
+                    }
+                    statusStack.push(gotoStatus);
+                }
+                case Accept -> {
+                    callWhenInAccept(currentStatus);
+                    return;
+                }
+                case Error ->
+                    throw new RuntimeException(
+                            "Syntax error at token %s under status %s".formatted(currentToken, currentStatus));
+            }
+        }
+    }
+
+    private static class Symbol {
+        private final Token token;
+        private final NonTerminal nonTerminal;
+
+        private Symbol(Token token, NonTerminal nonTerminal) {
+            this.token = token;
+            this.nonTerminal = nonTerminal;
+        }
+
+        public Symbol(Token token) {
+            this(token, null);
+        }
+
+        public Symbol(NonTerminal nonTerminal) {
+            this(null, nonTerminal);
+        }
+
+        public boolean isToken() {
+            return this.token != null;
+        }
+
+        public boolean isNonTerminal() {
+            return this.nonTerminal != null;
+        }
     }
 }
