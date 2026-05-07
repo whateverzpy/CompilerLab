@@ -1,6 +1,5 @@
 package cn.edu.hitsz.compiler.lexer;
 
-import cn.edu.hitsz.compiler.NotImplementedException;
 import cn.edu.hitsz.compiler.symtab.SymbolTable;
 import cn.edu.hitsz.compiler.utils.FileUtils;
 
